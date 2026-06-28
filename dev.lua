@@ -1,3 +1,8 @@
+--==================================================================
+-- 🏃 SM1LE HUB — Lurking Giants
+-- RightCtrl hides, — minimizes, ✕ closes.
+--==================================================================
+
 if game.PlaceId ~= 6328880674 then return end
 if _G.Sm1leHub and _G.Sm1leHub.Destroy then pcall(_G.Sm1leHub.Destroy) end
 
@@ -11,6 +16,42 @@ local Lighting = game:GetService("Lighting")
 local HttpService = game:GetService("HttpService")
 local StarterGui = game:GetService("StarterGui")
 local lp = Players.LocalPlayer
+
+-- Сохраняем оригинальные настройки освещения до изменений
+local originalLighting = {
+    Brightness = Lighting.Brightness,
+    ClockTime = Lighting.ClockTime,
+    FogEnd = Lighting.FogEnd,
+    FogStart = Lighting.FogStart,
+    GlobalShadows = Lighting.GlobalShadows,
+    OutdoorAmbient = Lighting.OutdoorAmbient,
+    Ambient = Lighting.Ambient,
+    Outlines = Lighting.Outlines,
+    Atmosphere = nil,
+    Bloom = nil,
+    ColorCorrection = nil,
+}
+
+if Lighting:FindFirstChild("Atmosphere") then
+    local at = Lighting.Atmosphere
+    originalLighting.Atmosphere = {
+        Density = at.Density,
+        Offset = at.Offset,
+        Haze = at.Haze,
+        Glare = at.Glare,
+    }
+end
+if Lighting:FindFirstChild("Bloom") then
+    originalLighting.Bloom = {
+        Intensity = Lighting.Bloom.Intensity,
+    }
+end
+if Lighting:FindFirstChild("ColorCorrection") then
+    originalLighting.ColorCorrection = {
+        Brightness = Lighting.ColorCorrection.Brightness,
+        Contrast = Lighting.ColorCorrection.Contrast,
+    }
+end
 
 local function corner(p, r)
     local c = Instance.new("UICorner"); c.CornerRadius = UDim.new(0, r); c.Parent = p; return c
@@ -27,7 +68,7 @@ local function toImageContent(input)
     return tostring(input or "")
 end
 
--- ==================== ИНТР0 ====================
+-- ==================== ИНТРО ====================
 local introGui = Instance.new("ScreenGui")
 introGui.Name = "Sm1leIntro"; introGui.ResetOnSpawn = false; introGui.IgnoreGuiInset = true
 introGui.Parent = (gethui and gethui()) or game:GetService("CoreGui")
@@ -151,16 +192,15 @@ local START_IMAGE_TRANSPARENCY = 0.05
 
 local S = {
     speed = false, jumppower = false, noclip = false, fly = false, antifling = false,
-    antiafk = false, autofarm = false, autohide = false,
-    farmmoney = false, autowin = false,
+    antiafk = false, autofarm = false, autowin = false,
     espPlayers = false, espGiants = false, chams = false, rainbowesp = false,
     espName = true, espRole = true, espDistance = true, espHP = true,
     riskmeter = false, fullbright = false, nofog = false,
     thirdperson = false, maxzoom = false, hitboxviewer = false,
     spectate = false, musicplayer = false, snowEffect = false,
-    speedVal = 50, jumpVal = 100, musicID = "rbxassetid://1842801835",
+    giantarrow = false, fovchanger = false, noscreenshake = false, notifications = false,
+    speedVal = 50, jumpVal = 100, musicID = "rbxassetid://1842801835", fovVal = 70,
     theme = "Cosmic", bgTransparency = math.floor(START_PANEL_TRANSPARENCY * 100),
-    hideDistance = 30,
     defaultWalkSpeed = 16, defaultJumpPower = 50,
 }
 
@@ -607,10 +647,7 @@ makeSlider(pPlayer,"Jump Height","Set custom jump power","jumpVal",50,300,100)
 -- FARM
 local pFarm = makeTab("Farm","🤖")
 makeToggle(pFarm,"Auto Farm","Hide underground / chase survivors","autofarm")
-makeToggle(pFarm,"Auto Hide","Auto-enter nearest closet when giant nearby","autohide")
-makeToggle(pFarm,"Farm Money","Kill survivors for money","farmmoney")
 makeToggle(pFarm,"Auto Win","Teleport all to you and kill","autowin")
-makeSlider(pFarm,"Hide Distance","Distance to giant before auto-hide","hideDistance",10,100,30)
 
 -- VISUALS
 local pVisuals = makeTab("Visuals","👁️")
@@ -626,10 +663,15 @@ makeToggle(pVisuals,"Chams","See players through walls","chams")
 makeToggle(pVisuals,"Rainbow ESP","Rainbow colored highlights","rainbowesp")
 sectionInfo(pVisuals,"<font color='#"..string.format("%02X%02X%02X",ACCENT.R*255,ACCENT.G*255,ACCENT.B*255).."'><b>HUD</b></font>")
 makeToggle(pVisuals,"⚠️ Risk Meter","Danger level (0-100%, up to 500m)","riskmeter")
+makeToggle(pVisuals,"📍 Giant Arrow","Arrow pointing to nearest giant","giantarrow")
 sectionInfo(pVisuals,"<font color='#"..string.format("%02X%02X%02X",ACCENT.R*255,ACCENT.G*255,ACCENT.B*255).."'><b>WORLD</b></font>")
 makeToggle(pVisuals,"Fullbright","Full map brightness","fullbright")
 makeToggle(pVisuals,"No Fog","Remove all fog","nofog")
 makeToggle(pVisuals,"Hitbox Viewer","See giant attack hitboxes (red)","hitboxviewer")
+sectionInfo(pVisuals,"<font color='#"..string.format("%02X%02X%02X",ACCENT.R*255,ACCENT.G*255,ACCENT.B*255).."'><b>CAMERA</b></font>")
+makeToggle(pVisuals,"FOV Changer","Change field of view","fovchanger")
+makeToggle(pVisuals,"No Screen Shake","Disable camera shake","noscreenshake")
+makeSlider(pVisuals,"FOV Value","Set field of view","fovVal",30,150,70)
 
 -- SPECTATE
 local pSpectate = makeTab("Spectate","👁️‍🗨️")
@@ -701,6 +743,7 @@ local pFun = makeTab("Fun","🎵")
 makeToggle(pFun,"Music Player","Play music in background","musicplayer")
 makeTextbox(pFun,"Music ID","Roblox audio asset ID","musicID","rbxassetid://1842801835")
 makeToggle(pFun,"Snow Effect","❄️ Falling snow inside the window","snowEffect",function(on) if on then startSnow() else stopSnow() end end)
+makeToggle(pFun,"Notifications","Alert popups for events","notifications")
 
 -- SETTINGS
 local pSettings = makeTab("Settings","⚙️")
@@ -803,6 +846,42 @@ local function saveDefaults()
     end
 end
 
+local function restoreLighting()
+    pcall(function()
+        Lighting.Brightness = originalLighting.Brightness
+        Lighting.ClockTime = originalLighting.ClockTime
+        Lighting.FogEnd = originalLighting.FogEnd
+        Lighting.FogStart = originalLighting.FogStart
+        Lighting.GlobalShadows = originalLighting.GlobalShadows
+        Lighting.OutdoorAmbient = originalLighting.OutdoorAmbient
+        Lighting.Ambient = originalLighting.Ambient
+        Lighting.Outlines = originalLighting.Outlines
+        if originalLighting.Atmosphere then
+            if not Lighting:FindFirstChild("Atmosphere") then Instance.new("Atmosphere", Lighting) end
+            local at = Lighting.Atmosphere
+            at.Density = originalLighting.Atmosphere.Density
+            at.Offset = originalLighting.Atmosphere.Offset
+            at.Haze = originalLighting.Atmosphere.Haze
+            at.Glare = originalLighting.Atmosphere.Glare
+        else
+            if Lighting:FindFirstChild("Atmosphere") then Lighting.Atmosphere:Destroy() end
+        end
+        if originalLighting.Bloom then
+            if not Lighting:FindFirstChild("Bloom") then Instance.new("Bloom", Lighting) end
+            Lighting.Bloom.Intensity = originalLighting.Bloom.Intensity
+        else
+            if Lighting:FindFirstChild("Bloom") then Lighting.Bloom:Destroy() end
+        end
+        if originalLighting.ColorCorrection then
+            if not Lighting:FindFirstChild("ColorCorrection") then Instance.new("ColorCorrection", Lighting) end
+            Lighting.ColorCorrection.Brightness = originalLighting.ColorCorrection.Brightness
+            Lighting.ColorCorrection.Contrast = originalLighting.ColorCorrection.Contrast
+        else
+            if Lighting:FindFirstChild("ColorCorrection") then Lighting.ColorCorrection:Destroy() end
+        end
+    end)
+end
+
 local function getPlayerRole(player)
     local team = player.Team; if team then return team.Name end
     local attr = player:GetAttribute("Team") or player:GetAttribute("team") or player:GetAttribute("Role")
@@ -836,25 +915,6 @@ local function getNearestSurvivor()
         end
     end
     return nearest, minDist
-end
-
-local function findClosets()
-    local c = {}
-    for _, o in ipairs(workspace:GetDescendants()) do
-        if o:IsA("BasePart") and (o.Name:lower():find("closet") or o.Name:lower():find("locker") or o.Name:lower():find("cabinet") or o.Name:lower():find("hiding")) then
-            table.insert(c, o)
-        end
-    end
-    return c
-end
-
-local function findNearestCloset(pos)
-    local nearest, minDist = nil, math.huge
-    for _, cl in ipairs(findClosets()) do
-        local dist = (cl.Position - pos).Magnitude
-        if dist < minDist then minDist = dist; nearest = cl end
-    end
-    return nearest
 end
 
 local espHighlights, espBillboards = {}, {}
@@ -907,32 +967,164 @@ local function updateRiskMeter(risk)
     riskFrame.BackgroundTransparency = risk > 75 and (math.sin(tick()*5)*0.1+0.2) or 0.5
 end
 
+-- GIANT ARROW
+local arrowGui, arrowFrame, arrowLabel
+local function createArrow()
+    if arrowGui then arrowGui:Destroy() end
+    arrowGui = Instance.new("ScreenGui"); arrowGui.Name = "GiantArrow"; arrowGui.ResetOnSpawn = false
+    arrowGui.Parent = (gethui and gethui()) or game:GetService("CoreGui")
+    arrowFrame = Instance.new("Frame", arrowGui)
+    arrowFrame.Size = UDim2.fromOffset(60, 60)
+    arrowFrame.Position = UDim2.fromScale(0.5, 0.15)
+    arrowFrame.AnchorPoint = Vector2.new(0.5, 0.5)
+    arrowFrame.BackgroundColor3 = Color3.fromRGB(255, 0, 0)
+    arrowFrame.BackgroundTransparency = 0.4
+    arrowFrame.BorderSizePixel = 0
+    corner(arrowFrame, 30)
+    local stroke = Instance.new("UIStroke", arrowFrame)
+    stroke.Color = Color3.fromRGB(255, 50, 50)
+    stroke.Thickness = 2
+    arrowLabel = Instance.new("TextLabel", arrowFrame)
+    arrowLabel.Size = UDim2.new(1, 0, 1, 0)
+    arrowLabel.BackgroundTransparency = 1
+    arrowLabel.Text = "▼"
+    arrowLabel.Font = Enum.Font.GothamBold
+    arrowLabel.TextSize = 30
+    arrowLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+    arrowLabel.TextStrokeTransparency = 0
+    Instance.new("UIStroke", arrowLabel).Color = Color3.fromRGB(0, 0, 0)
+end
+createArrow()
+arrowGui.Enabled = false
+
+local function updateArrow(giantPos, myPos)
+    if not arrowGui then return end
+    arrowGui.Enabled = S.giantarrow
+    if not S.giantarrow then return end
+    
+    local direction = (giantPos - myPos)
+    local dist = direction.Magnitude
+    
+    if dist > 0 then
+        local lookVector = workspace.CurrentCamera.CFrame.LookVector
+        local flatLook = Vector3.new(lookVector.X, 0, lookVector.Z).Unit
+        local flatDir = Vector3.new(direction.X, 0, direction.Z).Unit
+        
+        if flatLook.Magnitude > 0 and flatDir.Magnitude > 0 then
+            local dot = flatLook:Dot(flatDir)
+            local cross = flatLook:Cross(flatDir)
+            local angle = math.atan2(cross.Y, dot)
+            
+            local radius = 150
+            local arrowX = 0.5 + math.sin(angle) * 0.35
+            local arrowY = 0.15 + math.cos(angle) * 0.1
+            
+            arrowFrame.Position = UDim2.fromScale(
+                math.clamp(arrowX, 0.1, 0.9),
+                math.clamp(arrowY, 0.05, 0.3)
+            )
+            arrowFrame.Rotation = math.deg(angle) + 180
+            
+            arrowLabel.Text = "▼"
+            arrowFrame.BackgroundColor3 = dist < 50 and Color3.fromRGB(255, 0, 0) or Color3.fromRGB(255, 150, 0)
+            arrowFrame.Size = UDim2.fromOffset(dist < 50 and 80 or 60, dist < 50 and 80 or 60)
+        end
+    end
+end
+
+-- УВЕДОМЛЕНИЯ
+local function sendNotification(title, text, duration)
+    if S.notifications then
+        pcall(function()
+            StarterGui:SetCore("SendNotification", {
+                Title = title,
+                Text = text,
+                Duration = duration or 5
+            })
+        end)
+    end
+end
+
+local lastGiantDistance = nil
+local function checkGiantAlert(dist)
+    if not S.notifications then return end
+    if dist and dist < 50 and (not lastGiantDistance or lastGiantDistance >= 50) then
+        sendNotification("⚠️ WARNING", "Giant is very close! ("..math.floor(dist).."m)", 3)
+    end
+    lastGiantDistance = dist
+end
+
 -- ==================== ГЛАВНЫЙ ЦИКЛ ====================
 local lastUpdate = 0
+local fullbrightActive = false
+local nofogActive = false
+local defaultFOV = 70
 
 RunService.Heartbeat:Connect(function()
     if not alive then return end
     if tick() - lastUpdate < 0.1 then return end
     lastUpdate = tick()
     
+    -- FULLBRIGHT / NO FOG
+    if S.fullbright then
+        if not fullbrightActive then fullbrightActive = true end
+        pcall(function()
+            Lighting.Brightness = 3; Lighting.ClockTime = 14
+            Lighting.FogEnd = 99999; Lighting.FogStart = 0
+            Lighting.GlobalShadows = false
+            Lighting.OutdoorAmbient = Color3.fromRGB(200, 200, 200)
+            Lighting.Ambient = Color3.fromRGB(200, 200, 200)
+            Lighting.Outlines = false
+            if Lighting:FindFirstChild("Bloom") then Lighting.Bloom.Intensity = 0 end
+            if Lighting:FindFirstChild("ColorCorrection") then
+                Lighting.ColorCorrection.Brightness = 0.1
+                Lighting.ColorCorrection.Contrast = 0.1
+            end
+            if Lighting:FindFirstChild("Atmosphere") then
+                Lighting.Atmosphere.Density = 0
+                Lighting.Atmosphere.Offset = 0
+                Lighting.Atmosphere.Haze = 0
+                Lighting.Atmosphere.Glare = 0
+            end
+        end)
+    else
+        if fullbrightActive then restoreLighting(); fullbrightActive = false end
+    end
+    
+    if S.nofog then
+        if not nofogActive then nofogActive = true end
+        pcall(function()
+            Lighting.FogEnd = 99999; Lighting.FogStart = 99998
+            if Lighting:FindFirstChild("Atmosphere") then
+                Lighting.Atmosphere.Density = 0
+                Lighting.Atmosphere.Offset = 0
+                Lighting.Atmosphere.Haze = 0
+            end
+        end)
+    else
+        if nofogActive then restoreLighting(); nofogActive = false end
+    end
+    
     local char = lp.Character
-    if not char then return end
+    if not char then
+        if arrowGui then arrowGui.Enabled = false end
+        return
+    end
     local hum = char:FindFirstChild("Humanoid")
-    if not hum then return end
+    if not hum then
+        if arrowGui then arrowGui.Enabled = false end
+        return
+    end
     local root = char:FindFirstChild("HumanoidRootPart")
-    if not root then return end
+    if not root then
+        if arrowGui then arrowGui.Enabled = false end
+        return
+    end
     
     saveDefaults()
     
-    -- SPEED: только когда включен (не трогаем когда выключен)
-    if S.speed then
-        hum.WalkSpeed = S.speedVal
-    end
-    
-    -- JUMP: только когда включен (не трогаем когда выключен)
-    if S.jumppower then
-        hum.JumpPower = S.jumpVal
-    end
+    if S.speed then hum.WalkSpeed = S.speedVal end
+    if S.jumppower then hum.JumpPower = S.jumpVal end
     
     if S.noclip then
         for _, p in ipairs(char:GetDescendants()) do if p:IsA("BasePart") then p.CanCollide = false end end
@@ -958,10 +1150,21 @@ RunService.Heartbeat:Connect(function()
         if UserInputService:IsKeyDown(Enum.KeyCode.Space) then moveDir += Vector3.new(0,1,0) end
         if UserInputService:IsKeyDown(Enum.KeyCode.LeftControl) then moveDir -= Vector3.new(0,1,0) end
         root.Velocity = moveDir.Magnitude > 0 and moveDir.Unit * 30 or Vector3.zero
-    elseif not S.autofarm and not S.farmmoney and not S.autowin then hum.PlatformStand = false end
+    elseif not S.autofarm and not S.autowin then hum.PlatformStand = false end
     
     if S.thirdperson then pcall(function() lp.CameraMode = Enum.CameraMode.Classic end) end
     if S.maxzoom then pcall(function() lp.CameraMaxZoomDistance = 999 end) end
+    
+    -- FOV CHANGER
+    if S.fovchanger and workspace.CurrentCamera then
+        defaultFOV = workspace.CurrentCamera.FieldOfView
+        workspace.CurrentCamera.FieldOfView = S.fovVal
+    end
+    
+    -- NO SCREEN SHAKE
+    if S.noscreenshake and workspace.CurrentCamera then
+        workspace.CurrentCamera.CameraShake = 0
+    end
     
     -- AUTO FARM
     if S.autofarm then
@@ -987,41 +1190,8 @@ RunService.Heartbeat:Connect(function()
         else
             root.Velocity = Vector3.zero
         end
-    elseif savedOriginalPos and not S.farmmoney and not S.autowin then
+    elseif savedOriginalPos and not S.autowin then
         root.CFrame = CFrame.new(savedOriginalPos); savedOriginalPos = nil; hum.PlatformStand = false
-    end
-    
-    -- FARM MONEY
-    if S.farmmoney then
-        local myRole = getPlayerRole(lp):lower()
-        if myRole:find("giant") then
-            if not savedOriginalPos then savedOriginalPos = root.Position end
-            hum.PlatformStand = true
-            local survivors = {}
-            for _, p in ipairs(Players:GetPlayers()) do
-                if p ~= lp and isSurvivor(p) and p.Character and p.Character:FindFirstChild("HumanoidRootPart") then
-                    table.insert(survivors, p)
-                end
-            end
-            local attacked = 0
-            for _, surv in ipairs(survivors) do
-                if attacked >= 3 then break end
-                if surv.Character and surv.Character:FindFirstChild("HumanoidRootPart") then
-                    root.CFrame = surv.Character.HumanoidRootPart.CFrame + Vector3.new(0,2,0)
-                    VIM:SendKeyEvent(true, Enum.KeyCode.Q, false, nil)
-                    task.wait(0.05)
-                    VIM:SendKeyEvent(false, Enum.KeyCode.Q, false, nil)
-                    attacked += 1
-                    task.wait(0.3)
-                end
-            end
-            for _, p in ipairs(Players:GetPlayers()) do
-                if p ~= lp and isLobby(p) and p.Character and p.Character:FindFirstChild("HumanoidRootPart") then
-                    local frontPos = root.Position + root.CFrame.LookVector * 5
-                    p.Character.HumanoidRootPart.CFrame = CFrame.new(frontPos)
-                end
-            end
-        end
     end
     
     -- AUTO WIN
@@ -1042,16 +1212,18 @@ RunService.Heartbeat:Connect(function()
         end
     end
     
-    if S.autohide then
+    -- GIANT ARROW
+    if S.giantarrow then
         local ng, gd = getNearestGiant()
-        if ng and gd < S.hideDistance then
-            local nc = findNearestCloset(root.Position)
-            if nc then root.CFrame = CFrame.new(nc.Position + Vector3.new(0,2,0)) end
+        if ng and ng.Character and ng.Character:FindFirstChild("HumanoidRootPart") then
+            updateArrow(ng.Character.HumanoidRootPart.Position, root.Position)
+        else
+            if arrowGui then arrowGui.Enabled = false end
         end
+        checkGiantAlert(gd)
+    else
+        if arrowGui then arrowGui.Enabled = false end
     end
-    
-    if S.fullbright then Lighting.Brightness = 5; Lighting.FogEnd = 99999 end
-    if S.nofog then Lighting.FogEnd = 99999; Lighting.FogStart = 99998 end
     
     if S.espPlayers or S.espGiants then
         clearESP()
@@ -1118,7 +1290,6 @@ RunService.Heartbeat:Connect(function()
         for _, p in ipairs(hitboxParts) do pcall(function() p:Destroy() end) end; table.clear(hitboxParts)
     end
     
-    -- RISK METER (расстояние до 500 метров)
     if S.riskmeter then
         local _, gd = getNearestGiant()
         local risk = gd and math.clamp(500 - gd, 0, 500) / 5 or 0
@@ -1127,9 +1298,9 @@ RunService.Heartbeat:Connect(function()
     
     local hp = math.floor(hum.Health)
     local ng, gd = getNearestGiant()
-    stats.Text = string.format("HP: %d | Role: %s\nGiant: %s | Farm: %s | Money: %s | ❄️: %s",
+    stats.Text = string.format("HP: %d | Role: %s\nGiant: %s | Farm: %s | ❄️: %s",
         hp, getPlayerRole(lp), ng and (ng.Name.." "..math.floor(gd).."m") or "None",
-        S.autofarm and "✅" or "❌", S.farmmoney and "✅" or "❌", S.snowEffect and "✅" or "❌")
+        S.autofarm and "✅" or "❌", S.snowEffect and "✅" or "❌")
 end)
 
 -- SPECTATE
@@ -1168,8 +1339,14 @@ _G.Sm1leHub = {
         alive = false
         for k in pairs(S) do if type(S[k]) == "boolean" then S[k] = false end end
         stopSnow(); clearESP()
+        restoreLighting()
+        if workspace.CurrentCamera then
+            workspace.CurrentCamera.FieldOfView = defaultFOV
+            workspace.CurrentCamera.CameraShake = 0
+        end
         for _, p in ipairs(hitboxParts) do pcall(function() p:Destroy() end) end
         if riskMeterGUI then riskMeterGUI:Destroy() end
+        if arrowGui then arrowGui:Destroy() end
         if gui then gui:Destroy() end
         if musicSound then musicSound:Stop(); musicSound:Destroy() end
         if lp.Character and lp.Character:FindFirstChild("Humanoid") then
@@ -1181,3 +1358,4 @@ _G.Sm1leHub = {
 
 print("✅ SM1LE HUB — Lurking Giants LOADED")
 print("👁️ RightCtrl — скрыть | ✕ — закрыть | — — свернуть")
+print("📍 Giant Arrow | 🔍 FOV Changer | 📳 No Screen Shake | 🔔 Notifications")
