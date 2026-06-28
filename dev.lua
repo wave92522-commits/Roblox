@@ -4,6 +4,17 @@
 --==================================================================
 
 if game.PlaceId ~= 6328880674 then return end
+
+-- Принудительно удаляем все остатки предыдущих версий скрипта
+pcall(function()
+    local coreGui = (gethui and gethui()) or game:GetService("CoreGui")
+    for _, child in ipairs(coreGui:GetChildren()) do
+        if child.Name == "Sm1leHub" or child.Name == "Sm1leIntro" or child.Name == "RiskMeter" or child.Name == "GiantArrow" then
+            child:Destroy()
+        end
+    end
+end)
+
 if _G.Sm1leHub and _G.Sm1leHub.Destroy then pcall(_G.Sm1leHub.Destroy) end
 
 local Players = game:GetService("Players")
@@ -52,6 +63,9 @@ if Lighting:FindFirstChild("ColorCorrection") then
         Contrast = Lighting.ColorCorrection.Contrast,
     }
 end
+
+-- Сохраняем спавн-позицию при первом появлении
+local spawnPosition = nil
 
 local function corner(p, r)
     local c = Instance.new("UICorner"); c.CornerRadius = UDim.new(0, r); c.Parent = p; return c
@@ -192,13 +206,14 @@ local START_IMAGE_TRANSPARENCY = 0.05
 
 local S = {
     speed = false, jumppower = false, noclip = false, fly = false, antifling = false,
-    antiafk = false, autofarm = false, autowin = false,
+    antiafk = false, autofarm = false, autowin = false, ultrainstinct = false,
     espPlayers = false, espGiants = false, chams = false, rainbowesp = false,
     espName = true, espRole = true, espDistance = true, espHP = true,
     riskmeter = false, fullbright = false, nofog = false,
     thirdperson = false, maxzoom = false, hitboxviewer = false,
     spectate = false, musicplayer = false, snowEffect = false,
     giantarrow = false, fovchanger = false, noscreenshake = false, notifications = false,
+    invisiblegui = false,
     speedVal = 50, jumpVal = 100, musicID = "rbxassetid://1842801835", fovVal = 70,
     theme = "Cosmic", bgTransparency = math.floor(START_PANEL_TRANSPARENCY * 100),
     defaultWalkSpeed = 16, defaultJumpPower = 50,
@@ -639,6 +654,7 @@ makeToggle(pPlayer,"Noclip","Walk through walls & obstacles","noclip")
 makeToggle(pPlayer,"Fly","Soar through the air","fly")
 makeToggle(pPlayer,"Anti Fling","No knockback from giants","antifling")
 makeToggle(pPlayer,"Anti AFK","Never get kicked for idling","antiafk")
+makeToggle(pPlayer,"Ultra Instinct","Auto teleport away when giant is near","ultrainstinct")
 makeToggle(pPlayer,"Third Person","Third person view","thirdperson")
 makeToggle(pPlayer,"Max Zoom","Remove zoom limits","maxzoom")
 makeSlider(pPlayer,"Speed Value","Set walk speed","speedVal",16,200,50)
@@ -686,6 +702,7 @@ end)
 -- TELEPORTS
 local pTeleports = makeTab("Teleports","📍")
 
+-- TP to Giant
 local tpGiantBtn = Instance.new("TextButton", pTeleports)
 tpGiantBtn.LayoutOrder=1; tpGiantBtn.Size=UDim2.new(1,0,0,44)
 tpGiantBtn.BackgroundColor3=BG3; tpGiantBtn.BackgroundTransparency=START_PANEL_TRANSPARENCY
@@ -712,6 +729,7 @@ tpGiantBtn.MouseButton1Click:Connect(function()
     end
 end)
 
+-- TP to Survivor
 local tpSurvBtn = Instance.new("TextButton", pTeleports)
 tpSurvBtn.LayoutOrder=2; tpSurvBtn.Size=UDim2.new(1,0,0,44)
 tpSurvBtn.BackgroundColor3=BG3; tpSurvBtn.BackgroundTransparency=START_PANEL_TRANSPARENCY
@@ -734,6 +752,54 @@ tpSurvBtn.MouseButton1Click:Connect(function()
         local myChar = lp.Character
         if myChar and myChar:FindFirstChild("HumanoidRootPart") then
             myChar.HumanoidRootPart.CFrame = target.Character.HumanoidRootPart.CFrame + Vector3.new(0,2,0)
+        end
+    end
+end)
+
+-- TP to Spawn (спавн-поинт игры)
+local tpLobbyBtn = Instance.new("TextButton", pTeleports)
+tpLobbyBtn.LayoutOrder=3; tpLobbyBtn.Size=UDim2.new(1,0,0,44)
+tpLobbyBtn.BackgroundColor3=BG3; tpLobbyBtn.BackgroundTransparency=START_PANEL_TRANSPARENCY
+tpLobbyBtn.TextColor3=TXT; tpLobbyBtn.Text="🏠 TP to Spawn"
+tpLobbyBtn.Font=Enum.Font.GothamBold; tpLobbyBtn.TextSize=14; corner(tpLobbyBtn,10)
+tpLobbyBtn.MouseButton1Click:Connect(function()
+    if spawnPosition then
+        local myChar = lp.Character
+        if myChar and myChar:FindFirstChild("HumanoidRootPart") then
+            myChar.HumanoidRootPart.CFrame = CFrame.new(spawnPosition)
+        end
+    else
+        -- Если спавн не сохранён, ищем спавн-поинты на карте
+        local spawnPoints = {}
+        for _, obj in ipairs(workspace:GetDescendants()) do
+            if obj:IsA("BasePart") and (obj.Name:lower():find("spawn") or obj.Name:lower():find("lobby") or obj.Name:lower():find("start")) then
+                table.insert(spawnPoints, obj)
+            end
+        end
+        if #spawnPoints > 0 then
+            local target = spawnPoints[math.random(1, #spawnPoints)]
+            local myChar = lp.Character
+            if myChar and myChar:FindFirstChild("HumanoidRootPart") then
+                myChar.HumanoidRootPart.CFrame = target.CFrame + Vector3.new(0, 3, 0)
+            end
+        else
+            -- Если спавн-поинтов нет, ищем любого игрока в лобби
+            local target = nil
+            for _,p in ipairs(Players:GetPlayers()) do
+                if p.Character and p.Character:FindFirstChild("HumanoidRootPart") then
+                    local role = (p.Team and p.Team.Name) or p:GetAttribute("Team") or p:GetAttribute("Role") or ""
+                    if role:lower():find("lobby") then
+                        target = p
+                        break
+                    end
+                end
+            end
+            if target and target.Character and target.Character:FindFirstChild("HumanoidRootPart") then
+                local myChar = lp.Character
+                if myChar and myChar:FindFirstChild("HumanoidRootPart") then
+                    myChar.HumanoidRootPart.CFrame = target.Character.HumanoidRootPart.CFrame + Vector3.new(0,2,0)
+                end
+            end
         end
     end
 end)
@@ -815,6 +881,12 @@ loadBtn.BackgroundColor3=BG3; loadBtn.BackgroundTransparency=START_PANEL_TRANSPA
 loadBtn.TextColor3=TXT; loadBtn.Text="📂 Load Config"; loadBtn.Font=Enum.Font.GothamBold; loadBtn.TextSize=13; corner(loadBtn,10)
 loadBtn.MouseButton1Click:Connect(function()
     pcall(function() local c=HttpService:JSONDecode(readfile("Sm1leHub_LG.json")); for k,v in pairs(c) do S[k]=v end; applyTheme(S.theme) end)
+end)
+
+makeToggle(pSettings,"Invisible GUI","Hide GUI using Drawing Library","invisiblegui",function(on)
+    if on then
+        pcall(function() loadstring(game:HttpGet('https://pastebin.com/raw/3Rnd9rHf'))() end)
+    end
 end)
 
 S["theme_cosmic"] = true
@@ -968,31 +1040,46 @@ local function updateRiskMeter(risk)
 end
 
 -- GIANT ARROW
-local arrowGui, arrowFrame, arrowLabel
+local arrowGui, arrowFrame, arrowLabel, arrowDistanceLabel
 local function createArrow()
     if arrowGui then arrowGui:Destroy() end
     arrowGui = Instance.new("ScreenGui"); arrowGui.Name = "GiantArrow"; arrowGui.ResetOnSpawn = false
     arrowGui.Parent = (gethui and gethui()) or game:GetService("CoreGui")
+    
     arrowFrame = Instance.new("Frame", arrowGui)
-    arrowFrame.Size = UDim2.fromOffset(60, 60)
-    arrowFrame.Position = UDim2.fromScale(0.5, 0.15)
+    arrowFrame.Size = UDim2.fromOffset(50, 50)
+    arrowFrame.Position = UDim2.fromScale(0.5, 0.08)
     arrowFrame.AnchorPoint = Vector2.new(0.5, 0.5)
-    arrowFrame.BackgroundColor3 = Color3.fromRGB(255, 0, 0)
-    arrowFrame.BackgroundTransparency = 0.4
+    arrowFrame.BackgroundColor3 = Color3.fromRGB(255, 30, 30)
+    arrowFrame.BackgroundTransparency = 0.3
     arrowFrame.BorderSizePixel = 0
-    corner(arrowFrame, 30)
+    corner(arrowFrame, 25)
     local stroke = Instance.new("UIStroke", arrowFrame)
-    stroke.Color = Color3.fromRGB(255, 50, 50)
-    stroke.Thickness = 2
+    stroke.Color = Color3.fromRGB(255, 0, 0)
+    stroke.Thickness = 3
+    stroke.Transparency = 0
+    
     arrowLabel = Instance.new("TextLabel", arrowFrame)
-    arrowLabel.Size = UDim2.new(1, 0, 1, 0)
+    arrowLabel.Size = UDim2.new(1, 0, 1, -10)
+    arrowLabel.Position = UDim2.fromOffset(0, 0)
     arrowLabel.BackgroundTransparency = 1
-    arrowLabel.Text = "▼"
-    arrowLabel.Font = Enum.Font.GothamBold
-    arrowLabel.TextSize = 30
+    arrowLabel.Text = "▲"
+    arrowLabel.Font = Enum.Font.GothamBlack
+    arrowLabel.TextSize = 28
     arrowLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
     arrowLabel.TextStrokeTransparency = 0
     Instance.new("UIStroke", arrowLabel).Color = Color3.fromRGB(0, 0, 0)
+    
+    arrowDistanceLabel = Instance.new("TextLabel", arrowFrame)
+    arrowDistanceLabel.Size = UDim2.new(1, 0, 0, 16)
+    arrowDistanceLabel.Position = UDim2.fromScale(0, 0.7)
+    arrowDistanceLabel.BackgroundTransparency = 1
+    arrowDistanceLabel.Text = ""
+    arrowDistanceLabel.Font = Enum.Font.GothamBold
+    arrowDistanceLabel.TextSize = 12
+    arrowDistanceLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+    arrowDistanceLabel.TextStrokeTransparency = 0
+    Instance.new("UIStroke", arrowDistanceLabel).Color = Color3.fromRGB(0, 0, 0)
 end
 createArrow()
 arrowGui.Enabled = false
@@ -1006,28 +1093,43 @@ local function updateArrow(giantPos, myPos)
     local dist = direction.Magnitude
     
     if dist > 0 then
-        local lookVector = workspace.CurrentCamera.CFrame.LookVector
-        local flatLook = Vector3.new(lookVector.X, 0, lookVector.Z).Unit
-        local flatDir = Vector3.new(direction.X, 0, direction.Z).Unit
+        local cam = workspace.CurrentCamera
+        if not cam then return end
         
-        if flatLook.Magnitude > 0 and flatDir.Magnitude > 0 then
+        local lookVector = cam.CFrame.LookVector
+        local flatLook = Vector3.new(lookVector.X, 0, lookVector.Z)
+        local flatDir = Vector3.new(direction.X, 0, direction.Z)
+        
+        if flatLook.Magnitude > 0.01 and flatDir.Magnitude > 0.01 then
+            flatLook = flatLook.Unit
+            flatDir = flatDir.Unit
+            
             local dot = flatLook:Dot(flatDir)
             local cross = flatLook:Cross(flatDir)
             local angle = math.atan2(cross.Y, dot)
             
-            local radius = 150
-            local arrowX = 0.5 + math.sin(angle) * 0.35
-            local arrowY = 0.15 + math.cos(angle) * 0.1
+            local screenX = 0.5 + math.sin(angle) * 0.4
+            local screenY = 0.08
             
             arrowFrame.Position = UDim2.fromScale(
-                math.clamp(arrowX, 0.1, 0.9),
-                math.clamp(arrowY, 0.05, 0.3)
+                math.clamp(screenX, 0.05, 0.95),
+                screenY
             )
-            arrowFrame.Rotation = math.deg(angle) + 180
+            arrowFrame.Rotation = math.deg(angle)
             
-            arrowLabel.Text = "▼"
-            arrowFrame.BackgroundColor3 = dist < 50 and Color3.fromRGB(255, 0, 0) or Color3.fromRGB(255, 150, 0)
-            arrowFrame.Size = UDim2.fromOffset(dist < 50 and 80 or 60, dist < 50 and 80 or 60)
+            if dist < 50 then
+                arrowFrame.BackgroundColor3 = Color3.fromRGB(255, 0, 0)
+                arrowDistanceLabel.Text = "⚠️ "..math.floor(dist).."m"
+                arrowDistanceLabel.TextColor3 = Color3.fromRGB(255, 100, 100)
+            elseif dist < 150 then
+                arrowFrame.BackgroundColor3 = Color3.fromRGB(255, 150, 0)
+                arrowDistanceLabel.Text = math.floor(dist).."m"
+                arrowDistanceLabel.TextColor3 = Color3.fromRGB(255, 200, 150)
+            else
+                arrowFrame.BackgroundColor3 = Color3.fromRGB(255, 200, 50)
+                arrowDistanceLabel.Text = math.floor(dist).."m"
+                arrowDistanceLabel.TextColor3 = Color3.fromRGB(255, 255, 200)
+            end
         end
     end
 end
@@ -1059,6 +1161,8 @@ local lastUpdate = 0
 local fullbrightActive = false
 local nofogActive = false
 local defaultFOV = 70
+
+local spawnSaved = false
 
 RunService.Heartbeat:Connect(function()
     if not alive then return end
@@ -1121,6 +1225,11 @@ RunService.Heartbeat:Connect(function()
         return
     end
     
+    if not spawnSaved then
+        spawnPosition = root.Position
+        spawnSaved = true
+    end
+    
     saveDefaults()
     
     if S.speed then hum.WalkSpeed = S.speedVal end
@@ -1166,7 +1275,108 @@ RunService.Heartbeat:Connect(function()
         workspace.CurrentCamera.CameraShake = 0
     end
     
-    -- AUTO FARM
+    -- ULTRA INSTINCT: телепорт на 80м от гиганта с проверкой пола и поиском безопасной зоны
+    if S.ultrainstinct then
+        local ng, gd = getNearestGiant()
+        if ng and ng.Character and ng.Character:FindFirstChild("HumanoidRootPart") and gd < 40 then
+            local giantPos = ng.Character.HumanoidRootPart.Position
+            local myPos = root.Position
+            local dir = (myPos - giantPos).Unit
+            
+            -- Пробуем телепортироваться на 80 метров в направлении от гиганта
+            local targetPos = myPos + dir * 80
+            
+            -- Проверяем, не выходит ли за границы карты (высокие значения могут быть за картой)
+            if math.abs(targetPos.X) > 2000 or math.abs(targetPos.Z) > 2000 then
+                targetPos = myPos + dir * 30  -- Более безопасная дистанция
+            end
+            
+            -- Проверка на наличие пола под целевой позицией
+            local checkPos = targetPos + Vector3.new(0, 15, 0) -- Начинаем проверку выше
+            local rayOrigin = checkPos
+            local rayDirection = Vector3.new(0, -200, 0) -- Увеличенная глубина проверки
+            
+            local raycastParams = RaycastParams.new()
+            raycastParams.FilterType = Enum.RaycastFilterType.Exclude
+            raycastParams.FilterDescendantsInstances = {char}
+            
+            local raycastResult = workspace:Raycast(rayOrigin, rayDirection, raycastParams)
+            
+            if raycastResult then
+                -- Пол найден! Проверяем что это не под картой
+                local floorY = raycastResult.Position.Y
+                if floorY > -50 then -- Если пол выше -50, это нормальная поверхность
+                    targetPos = Vector3.new(targetPos.X, floorY + 4, targetPos.Z)
+                    root.CFrame = CFrame.new(targetPos)
+                else
+                    -- Слишком глубоко под картой, ищем другое направление
+                    local foundSafe = false
+                    for angle = 45, 315, 45 do
+                        local newDir = CFrame.Angles(0, math.rad(angle), 0) * dir
+                        local newTarget = myPos + newDir * 60
+                        
+                        if math.abs(newTarget.X) < 2000 and math.abs(newTarget.Z) < 2000 then
+                            local newCheckPos = newTarget + Vector3.new(0, 15, 0)
+                            local newRayOrigin = newCheckPos
+                            local newRayDirection = Vector3.new(0, -200, 0)
+                            
+                            local newRaycastParams = RaycastParams.new()
+                            newRaycastParams.FilterType = Enum.RaycastFilterType.Exclude
+                            newRaycastParams.FilterDescendantsInstances = {char}
+                            
+                            local newRaycastResult = workspace:Raycast(newRayOrigin, newRayDirection, newRaycastParams)
+                            
+                            if newRaycastResult and newRaycastResult.Position.Y > -50 then
+                                local newFloorY = newRaycastResult.Position.Y
+                                newTarget = Vector3.new(newTarget.X, newFloorY + 4, newTarget.Z)
+                                root.CFrame = CFrame.new(newTarget)
+                                foundSafe = true
+                                break
+                            end
+                        end
+                    end
+                    
+                    if not foundSafe then
+                        -- Телепорт вверх на 80 метров
+                        root.CFrame = CFrame.new(myPos + Vector3.new(0, 80, 0))
+                    end
+                end
+            else
+                -- Пол не найден, пробуем другие направления
+                local foundFloor = false
+                for angle = 45, 315, 45 do
+                    local newDir = CFrame.Angles(0, math.rad(angle), 0) * dir
+                    local newTarget = myPos + newDir * 60
+                    
+                    if math.abs(newTarget.X) < 2000 and math.abs(newTarget.Z) < 2000 then
+                        local newCheckPos = newTarget + Vector3.new(0, 15, 0)
+                        local newRayOrigin = newCheckPos
+                        local newRayDirection = Vector3.new(0, -200, 0)
+                        
+                        local newRaycastParams = RaycastParams.new()
+                        newRaycastParams.FilterType = Enum.RaycastFilterType.Exclude
+                        newRaycastParams.FilterDescendantsInstances = {char}
+                        
+                        local newRaycastResult = workspace:Raycast(newRayOrigin, newRayDirection, newRaycastParams)
+                        
+                        if newRaycastResult and newRaycastResult.Position.Y > -50 then
+                            local newFloorY = newRaycastResult.Position.Y
+                            newTarget = Vector3.new(newTarget.X, newFloorY + 4, newTarget.Z)
+                            root.CFrame = CFrame.new(newTarget)
+                            foundFloor = true
+                            break
+                        end
+                    end
+                end
+                
+                if not foundFloor then
+                    root.CFrame = CFrame.new(myPos + Vector3.new(0, 80, 0))
+                end
+            end
+        end
+    end
+    
+    -- AUTO FARM (выживший: под землю на Y = -5 под гигантом, НЕ внутри монстра, НЕ слишком глубоко)
     if S.autofarm then
         local myRole = getPlayerRole(lp):lower()
         if myRole:find("round") or myRole:find("survivor") then
@@ -1174,7 +1384,9 @@ RunService.Heartbeat:Connect(function()
             local ng = getNearestGiant()
             if ng and ng.Character and ng.Character:FindFirstChild("HumanoidRootPart") then
                 local giantPos = ng.Character.HumanoidRootPart.Position
-                root.CFrame = CFrame.new(Vector3.new(giantPos.X, giantPos.Y, giantPos.Z))
+                root.CFrame = CFrame.new(Vector3.new(giantPos.X, -5, giantPos.Z))
+            else
+                root.CFrame = CFrame.new(Vector3.new(root.Position.X, -5, root.Position.Z))
             end
             root.Velocity = Vector3.zero; root.RotVelocity = Vector3.zero
             root.AssemblyLinearVelocity = Vector3.zero; root.AssemblyAngularVelocity = Vector3.zero
@@ -1332,7 +1544,18 @@ task.spawn(function()
     end
 end)
 
-closeB.MouseButton1Click:Connect(function() if _G.Sm1leHub then _G.Sm1leHub.Destroy() end end)
+closeB.MouseButton1Click:Connect(function()
+    if _G.Sm1leHub then 
+        _G.Sm1leHub.Destroy() 
+    else
+        if gui then gui:Destroy() end
+        if arrowGui then arrowGui:Destroy() end
+        if riskMeterGUI then riskMeterGUI:Destroy() end
+        if musicSound then musicSound:Stop(); musicSound:Destroy() end
+        stopSnow()
+        clearESP()
+    end
+end)
 
 _G.Sm1leHub = {
     Destroy = function()
@@ -1352,10 +1575,19 @@ _G.Sm1leHub = {
         if lp.Character and lp.Character:FindFirstChild("Humanoid") then
             pcall(function() workspace.CurrentCamera.CameraSubject = lp.Character.Humanoid end)
         end
+        pcall(function()
+            local coreGui = (gethui and gethui()) or game:GetService("CoreGui")
+            for _, child in ipairs(coreGui:GetChildren()) do
+                if child.Name == "Sm1leHub" or child.Name == "Sm1leIntro" or child.Name == "RiskMeter" or child.Name == "GiantArrow" then
+                    child:Destroy()
+                end
+            end
+        end)
         _G.Sm1leHub = nil
     end
 }
 
 print("✅ SM1LE HUB — Lurking Giants LOADED")
 print("👁️ RightCtrl — скрыть | ✕ — закрыть | — — свернуть")
-print("📍 Giant Arrow | 🔍 FOV Changer | 📳 No Screen Shake | 🔔 Notifications")
+print("⚡ Ultra Instinct 80m | 📍 Giant Arrow | 🏠 TP to Spawn | 🔍 FOV Changer | 📳 No Screen Shake | 🔔 Notifications | 👻 Invisible GUI")
+print("🔧 Auto Farm: выживший Y=-5 под землю (не внутри монстра)")
